@@ -15,7 +15,7 @@ const fs   = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ── HTTP server — serves speaker.html and listener.html ─────────────────
 const httpServer = http.createServer((req, res) => {
