@@ -1,0 +1,12 @@
+{
+  "name": "live-translation-server",
+  "version": "1.0.0",
+  "description": "Hindi → Czech live translation relay server over local WiFi",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}
