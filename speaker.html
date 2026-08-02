@@ -220,7 +220,8 @@ let ttsAudioCtx = null;
 
 // ── Connect to relay server ────────────────────────────────────────────
 function connectRelay() {
-  const wsUrl = `ws://${location.host}/ws/speaker`;
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${protocol}://${location.host}/ws/speaker`;
   dbg('Connecting to relay: ' + wsUrl);
   relayWs = new WebSocket(wsUrl);
 
