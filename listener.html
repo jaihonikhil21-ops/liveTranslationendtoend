@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,8 +10,8 @@
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #0a0a0a;
-    color: #f0ede6;
+    background:#f8fafc;
+    color: #111827;
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
@@ -21,8 +22,8 @@
   /* ── Header ── */
   .header {
     padding: 16px 20px 14px;
-    background: #111;
-    border-bottom: 1px solid #1e1e1e;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -30,18 +31,18 @@
   }
   .header-left { display: flex; align-items: center; gap: 10px; }
   .header-icon { font-size: 22px; }
-  .header-title { font-size: 16px; font-weight: 700; color: #f0ede6; }
-  .header-sub { font-size: 11px; color: #555; margin-top: 1px; }
+  .header-title { font-size: 16px; font-weight: 700; color: #111827; }
+  .header-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
 
   /* Live indicator */
   .live-pill {
     display: flex; align-items: center; gap: 6px;
-    background: rgba(255,77,77,0.12); border: 1px solid rgba(255,77,77,0.25);
+    background:#dcfce7; border:1px solid #86efac;
     border-radius: 999px; padding: 4px 10px;
-    font-size: 11px; font-weight: 600; color: #ff6b6b;
+    font-size: 11px; font-weight: 600; color:#15803d;
     transition: all 0.3s;
   }
-  .live-pill.waiting { background: rgba(80,80,80,0.1); border-color: #222; color: #444; }
+  .live-pill.waiting { background: rgba(80,80,80,0.1); border-color: #222; color: #6b7280; }
   .live-dot {
     width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d;
   }
@@ -60,7 +61,7 @@
   /* Tap to unmute overlay */
   .unmute-overlay {
     position: absolute; inset: 0; z-index: 50;
-    background: #0a0a0a;
+    background:#f8fafc;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     gap: 20px;
@@ -74,19 +75,19 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 36px;
   }
-  .unmute-title { font-size: 20px; font-weight: 700; color: #f0ede6; }
-  .unmute-sub { font-size: 13px; color: #555; text-align: center; max-width: 260px; line-height: 1.5; }
+  .unmute-title { font-size: 20px; font-weight: 700; color: #111827; }
+  .unmute-sub { font-size: 13px; color: #6b7280; text-align: center; max-width: 260px; line-height: 1.5; }
   .unmute-btn {
-    background: #9966cc; color: #fff; border: none; border-radius: 12px;
+    background:#2563eb; color: #fff; border: none; border-radius: 12px;
     padding: 14px 36px; font-size: 16px; font-weight: 600; cursor: pointer;
     transition: background 0.15s;
   }
-  .unmute-btn:hover { background: #7744aa; }
+  .unmute-btn:hover { background:#1d4ed8; }
 
   /* Connecting state */
   .connecting-overlay {
     position: absolute; inset: 0; z-index: 40;
-    background: #0a0a0a;
+    background:#f8fafc;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 16px;
   }
@@ -99,7 +100,7 @@
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .connecting-text { font-size: 14px; color: #555; }
+  .connecting-text { font-size: 14px; color: #6b7280; }
 
   /* Waiting for speaker */
   .waiting-overlay {
@@ -109,17 +110,17 @@
   }
   .waiting-overlay.hidden { display: none; }
   .waiting-icon { font-size: 48px; opacity: 0.2; }
-  .waiting-text { font-size: 15px; color: #444; }
-  .waiting-sub { font-size: 12px; color: #333; }
+  .waiting-text { font-size: 15px; color: #6b7280; }
+  .waiting-sub { font-size: 12px; color: #6b7280; }
 
   /* ── Czech transcript (main display) ── */
   .czech-section {
     flex: 1;
-    padding: 20px;
+    padding:24px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content:flex-start;
   }
 
   .czech-label {
@@ -129,13 +130,13 @@
   }
 
   .czech-text {
-    font-size: clamp(18px, 5vw, 26px);
+    font-size: clamp(26px,4vw,40px);
     line-height: 1.65;
-    color: #f0ede6;
+    color: #111827;
     word-break: break-word;
   }
   .czech-text .interim {
-    color: #444;
+    color: #6b7280;
     font-style: italic;
   }
   .czech-text.empty { color: #222; font-style: italic; font-size: 16px; }
@@ -143,10 +144,10 @@
   /* ── Hindi transcript (small, below) ── */
   .hindi-section {
     padding: 12px 20px 16px;
-    border-top: 1px solid #1e1e1e;
-    background: #0f0f0f;
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
     flex-shrink: 0;
-    max-height: 90px;
+    max-height:120px;
     overflow: hidden;
   }
   .hindi-label {
@@ -155,7 +156,7 @@
     margin-bottom: 5px; opacity: 0.7;
   }
   .hindi-text {
-    font-size: 12px; line-height: 1.6; color: #444;
+    font-size: 12px; line-height: 1.6; color: #6b7280;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -166,7 +167,7 @@
   /* ── Bottom bar ── */
   .bottom-bar {
     padding: 10px 20px;
-    background: #0a0a0a;
+    background:#f8fafc;
     border-top: 1px solid #151515;
     display: flex;
     align-items: center;
@@ -174,10 +175,10 @@
     flex-shrink: 0;
   }
   .vol-row { display: flex; align-items: center; gap: 8px; }
-  .vol-label { font-size: 10px; color: #333; }
+  .vol-label { font-size: 10px; color: #6b7280; }
   input[type="range"] { width: 100px; accent-color: #9966cc; cursor: pointer; }
-  .conn-info { font-size: 10px; color: #333; text-align: right; }
-  .conn-info .count { color: #555; }
+  .conn-info { font-size: 10px; color: #6b7280; text-align: right; }
+  .conn-info .count { color: #6b7280; }
 </style>
 </head>
 <body>
