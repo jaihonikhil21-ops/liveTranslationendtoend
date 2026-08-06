@@ -1,0 +1,622 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Live Translation — Czech</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background:#f8fafc;
+    color: #111827;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 16px 20px 14px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-icon { font-size: 22px; }
+  .header-title { font-size: 16px; font-weight: 700; color: #111827; }
+  .header-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+
+  /* Live indicator */
+  .live-pill {
+    display: flex; align-items: center; gap: 6px;
+    background:#dcfce7; border:1px solid #86efac;
+    border-radius: 999px; padding: 4px 10px;
+    font-size: 11px; font-weight: 600; color:#15803d;
+    transition: all 0.3s;
+  }
+  .live-pill.waiting { background: rgba(80,80,80,0.1); border-color: #222; color: #6b7280; }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .live-dot.pulse { animation: pulse 0.9s infinite; }
+
+  /* ── Main area ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Tap to unmute overlay */
+  .unmute-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    background:#f8fafc;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px;
+    cursor: pointer;
+  }
+  .unmute-overlay.hidden { display: none; }
+  .unmute-icon {
+    width: 80px; height: 80px;
+    border: 2px solid #9966cc;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+  }
+  .unmute-title { font-size: 20px; font-weight: 700; color: #111827; }
+  .unmute-sub { font-size: 13px; color: #6b7280; text-align: center; max-width: 260px; line-height: 1.5; }
+  .unmute-btn {
+    background:#2563eb; color: #fff; border: none; border-radius: 12px;
+    padding: 14px 36px; font-size: 16px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .unmute-btn:hover { background:#1d4ed8; }
+
+  /* Connecting state */
+  .connecting-overlay {
+    position: absolute; inset: 0; z-index: 40;
+    background:#f8fafc;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+  }
+  .connecting-overlay.hidden { display: none; }
+  .connecting-spinner {
+    width: 48px; height: 48px;
+    border: 3px solid #222;
+    border-top-color: #9966cc;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .connecting-text { font-size: 14px; color: #6b7280; }
+
+  /* Waiting for speaker */
+  .waiting-overlay {
+    position: absolute; inset: 0; z-index: 30;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+  }
+  .waiting-overlay.hidden { display: none; }
+  .waiting-icon { font-size: 48px; opacity: 0.2; }
+  .waiting-text { font-size: 15px; color: #6b7280; }
+  .waiting-sub { font-size: 12px; color: #6b7280; }
+
+  /* ── Czech transcript (main display) ── */
+  .czech-section {
+    flex: 1;
+    padding: 24px;
+    overflow-y: scroll; /* always show scrollbar */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    scroll-behavior: smooth;
+  }
+
+  /* Visible scrollbar on all platforms */
+  .czech-section::-webkit-scrollbar {
+    width: 8px;
+  }
+  .czech-section::-webkit-scrollbar-track {
+    background: #ede9f5;
+    border-radius: 99px;
+  }
+  .czech-section::-webkit-scrollbar-thumb {
+    background: #9966cc;
+    border-radius: 99px;
+    min-height: 40px;
+  }
+  .czech-section::-webkit-scrollbar-thumb:hover {
+    background: #7744aa;
+  }
+  /* Firefox */
+  .czech-section {
+    scrollbar-width: thin;
+    scrollbar-color: #9966cc #ede9f5;
+  }
+
+  .czech-label {
+    font-size: 10px; font-weight: 600; color: #9966cc;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 12px; opacity: 0.7;
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    padding-bottom: 6px;
+    z-index: 2;
+  }
+
+  .czech-text {
+    font-size: clamp(26px,4vw,40px);
+    line-height: 1.65;
+    color: #111827;
+    word-break: break-word;
+  }
+  .czech-text .interim {
+    color: #6b7280;
+    font-style: italic;
+  }
+  .czech-text.empty { color: #222; font-style: italic; font-size: 16px; }
+
+  /* Chunks flow inline as a continuous paragraph */
+  .caption-line {
+    display: inline;
+  }
+  .caption-line::after {
+    content: ' '; /* single space between chunks */
+  }
+  .caption-line.interim {
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  /* Invisible anchor div we scroll into view */
+  #scroll-anchor {
+    height: 1px;
+    flex-shrink: 0;
+  }
+
+  /* ── Floating scroll buttons ── */
+  .scroll-btns {
+    position: absolute;
+    right: 14px;
+    bottom: 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 20;
+  }
+  .scroll-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    color: #6b7280;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .scroll-btn:hover { background: #f3f0f8; border-color: #9966cc; color: #9966cc; }
+  .scroll-btn:active { transform: scale(0.92); }
+  /* Hide down button when already at bottom */
+  .scroll-btn.hidden { opacity: 0; pointer-events: none; }
+  /* Autoscroll resume pill */
+  .resume-pill {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #9966cc;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: none;
+    z-index: 20;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(153,102,204,0.35);
+    border: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .resume-pill.show { display: block; }
+
+  /* ── Hindi transcript (small, below) ── */
+  .hindi-section {
+    padding: 12px 20px 16px;
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
+    flex-shrink: 0;
+    max-height:120px;
+    overflow: hidden;
+  }
+  .hindi-label {
+    font-size: 9px; font-weight: 600; color: #c4681a;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 5px; opacity: 0.7;
+  }
+  .hindi-text {
+    font-size: 12px; line-height: 1.6; color: #6b7280;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .hindi-text .interim { color: #2e2e2e; font-style: italic; }
+
+  /* ── Bottom bar ── */
+  .bottom-bar {
+    padding: 10px 20px;
+    background:#f8fafc;
+    border-top: 1px solid #151515;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .vol-row { display: flex; align-items: center; gap: 8px; }
+  .vol-label { font-size: 10px; color: #6b7280; }
+  input[type="range"] { width: 100px; accent-color: #9966cc; cursor: pointer; }
+  .conn-info { font-size: 10px; color: #6b7280; text-align: right; }
+  .conn-info .count { color: #6b7280; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">🎧</div>
+    <div>
+      <div class="header-title">Live Translation</div>
+      <div class="header-sub" id="language-direction">Hindi → Czech</div>
+    </div>
+  </div>
+  <div class="live-pill waiting" id="live-pill">
+    <div class="live-dot" id="live-dot"></div>
+    <span id="live-label">Waiting</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Floating scroll buttons -->
+  <div class="scroll-btns">
+    <button class="scroll-btn" id="scroll-up-btn" onclick="manualScroll('up')" title="Scroll up">↑</button>
+    <button class="scroll-btn hidden" id="scroll-down-btn" onclick="manualScroll('down')" title="Scroll to latest">↓</button>
+  </div>
+
+  <!-- Resume autoscroll pill -->
+  <button class="resume-pill" id="resume-pill" onclick="resumeAutoScroll()">↓ Back to live</button>
+
+  <!-- Tap to unmute (iOS requires user gesture before audio) -->
+  <div class="unmute-overlay" id="unmute-overlay">
+    <div class="unmute-icon">🔇</div>
+    <div class="unmute-title">Tap to enable audio</div>
+    <div class="unmute-sub">Your browser needs permission to play audio. Tap the button below to start listening.</div>
+    <button class="unmute-btn" onclick="enableAudio()">Enable Audio →</button>
+  </div>
+
+  <!-- Connecting -->
+  <div class="connecting-overlay" id="connecting-overlay">
+    <div class="connecting-spinner"></div>
+    <div class="connecting-text">Connecting to server…</div>
+  </div>
+
+  <!-- Waiting for speaker -->
+  <div class="waiting-overlay hidden" id="waiting-overlay">
+    <div class="waiting-icon">🎙</div>
+    <div class="waiting-text">Waiting for speaker</div>
+    <div class="waiting-sub">The broadcast will start automatically</div>
+  </div>
+
+  <!-- Czech transcript -->
+  <div class="czech-section" id="czech-section">
+    <div class="czech-label" id="translation-label">🇨🇿 Czech translation</div>
+    <div class="czech-text empty" id="czech-text">Waiting for translation…</div>
+    <div id="scroll-anchor"></div>
+  </div>
+
+  <!-- Hindi source -->
+  <div class="hindi-section">
+    <div class="hindi-label" id="source-label">🇮🇳 Hindi source</div>
+    <div class="hindi-text" id="hindi-text"></div>
+  </div>
+
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <div class="vol-row">
+    <div class="vol-label">VOL</div>
+    <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="1">
+  </div>
+  <div class="conn-info">
+    <div id="listener-count-info" class="count">— listeners</div>
+    <div id="conn-status" style="margin-top:2px;">—</div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// State
+// ══════════════════════════════════════════════════════════════════════
+let ws          = null;
+let audioCtx    = null;
+let audioEnabled = false;
+let audioQueue  = [];   // ArrayBuffer chunks waiting to be played
+let isPlaying   = false;
+let speakerActive = false;
+let volume      = 1.0;
+
+// Rolling caption state
+const MAX_LINES = 250;
+let finalBlocks = [];
+let lastFinal = '';
+
+
+// ── Enable audio (iOS/Android require user gesture) ────────────────────
+function enableAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  audioEnabled = true;
+  document.getElementById('unmute-overlay').classList.add('hidden');
+
+  // Drain any queued chunks that arrived before user tapped
+  drainAudioQueue();
+  connectWS();
+}
+
+// ── WebSocket to relay server ──────────────────────────────────────────
+function connectWS() {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${protocol}://${location.host}/ws/listener`;
+  ws = new WebSocket(wsUrl);
+  ws.binaryType = 'arraybuffer';
+
+  document.getElementById('conn-status').textContent = 'Connecting…';
+
+  ws.onopen = () => {
+    document.getElementById('connecting-overlay').classList.add('hidden');
+    document.getElementById('conn-status').textContent = 'Connected';
+    if (!speakerActive) showWaiting(true);
+  };
+
+  ws.onmessage = (e) => {
+    if (e.data instanceof ArrayBuffer) {
+      // Binary = audio chunk
+      handleAudioChunk(e.data);
+    } else {
+      try {
+        const msg = JSON.parse(e.data);
+        handleMessage(msg);
+      } catch {}
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('conn-status').textContent = 'Reconnecting…';
+    setLivePill(false);
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => {};
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'connected') {
+    speakerActive = msg.speakerActive;
+    document.getElementById('listener-count-info').textContent = msg.listenerCount + ' listeners';
+    showWaiting(!speakerActive);
+    if (speakerActive) setLivePill(true);
+  }
+
+  if (msg.type === 'status') {
+    document.getElementById('listener-count-info').textContent = msg.listeners + ' listeners';
+    speakerActive = msg.speakerActive;
+    if (!speakerActive) { setLivePill(false); showWaiting(true); }
+  }
+
+  if (msg.type === 'translation') {
+    showWaiting(false);
+    setLivePill(true);
+    if (msg.sourceLanguage==='cs' && msg.targetLanguage==='hi'){
+      document.getElementById('language-direction').textContent='Czech → Hindi';
+      document.getElementById('translation-label').textContent='🇮🇳 Hindi translation';
+      document.getElementById('source-label').textContent='🇨🇿 Czech source';
+      renderCzech(msg.hindi||'',msg.interimHindi||'');
+      renderHindi(msg.czech||'',msg.interimCzech||'');
+    } else {
+      document.getElementById('language-direction').textContent='Hindi → Czech';
+      document.getElementById('translation-label').textContent='🇨🇿 Czech translation';
+      document.getElementById('source-label').textContent='🇮🇳 Hindi source';
+      renderCzech(msg.czech||'',msg.interimCzech||'');
+      renderHindi(msg.hindi||'',msg.interimHindi||'');
+    }
+  }
+
+  if (msg.type === 'broadcast_stopped' || msg.type === 'speaker_disconnected') {
+    speakerActive = false;
+    setLivePill(false);
+    showWaiting(true);
+  }
+}
+
+// ── Audio playback pipeline ────────────────────────────────────────────
+function handleAudioChunk(arrayBuffer) {
+  if (!audioEnabled) {
+    audioQueue.push(arrayBuffer);
+    return;
+  }
+  audioQueue.push(arrayBuffer);
+  drainAudioQueue();
+}
+
+async function drainAudioQueue() {
+  if (isPlaying || audioQueue.length === 0 || !audioCtx) return;
+  isPlaying = true;
+
+  while (audioQueue.length > 0) {
+    const chunk = audioQueue.shift();
+
+    // Prefetch decode next chunk while playing current
+    const nextDecodePromise = audioQueue.length > 0
+      ? audioCtx.decodeAudioData(audioQueue[0].slice(0)).catch(() => null)
+      : null;
+
+    let audioBuf;
+    try {
+      audioBuf = await audioCtx.decodeAudioData(chunk.slice(0));
+    } catch { continue; }
+
+    await playBuffer(audioBuf);
+
+    // If next was prefetched and still at head
+    if (nextDecodePromise && audioQueue.length > 0) {
+      const nextBuf = await nextDecodePromise;
+      if (nextBuf) { audioQueue.shift(); await playBuffer(nextBuf); }
+    }
+  }
+
+  isPlaying = false;
+}
+
+async function playBuffer(audioBuf) {
+  if (!audioCtx) return;
+  volume = parseFloat(document.getElementById('vol-slider').value);
+  await new Promise(resolve => {
+    const src    = audioCtx.createBufferSource();
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = volume;
+    src.buffer = audioBuf;
+    src.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    src.onended = resolve;
+    src.start(0);
+  });
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────
+function setLivePill(live) {
+  const pill  = document.getElementById('live-pill');
+  const dot   = document.getElementById('live-dot');
+  const label = document.getElementById('live-label');
+  if (live) {
+    pill.className = 'live-pill';
+    dot.classList.add('pulse');
+    label.textContent = 'LIVE';
+  } else {
+    pill.className = 'live-pill waiting';
+    dot.classList.remove('pulse');
+    label.textContent = 'Waiting';
+  }
+}
+
+function showWaiting(show) {
+  document.getElementById('waiting-overlay').classList.toggle('hidden', !show);
+}
+
+// ── User scroll detection — pause auto-scroll if user scrolled up ──────
+let userScrolledUp = false;
+const czechSection = document.getElementById('czech-section');
+
+czechSection.addEventListener('scroll', () => {
+  const distFromBottom = czechSection.scrollHeight - czechSection.scrollTop - czechSection.clientHeight;
+  const atBottom = distFromBottom < 80;
+  userScrolledUp = !atBottom;
+
+  // Show/hide down button and resume pill
+  document.getElementById('scroll-down-btn').classList.toggle('hidden', atBottom);
+  document.getElementById('resume-pill').classList.toggle('show', !atBottom);
+});
+
+function manualScroll(dir) {
+  const amount = czechSection.clientHeight * 0.7;
+  if (dir === 'up') {
+    czechSection.scrollBy({ top: -amount, behavior: 'smooth' });
+  } else {
+    resumeAutoScroll();
+  }
+}
+
+function resumeAutoScroll() {
+  userScrolledUp = false;
+  document.getElementById('scroll-down-btn').classList.add('hidden');
+  document.getElementById('resume-pill').classList.remove('show');
+  document.getElementById('scroll-anchor').scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function scrollToBottom() {
+  if (userScrolledUp) return;
+  const anchor = document.getElementById('scroll-anchor');
+  anchor.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function renderCzech(final, interim) {
+  const el = document.getElementById('czech-text');
+
+  if (!final && !interim) {
+    finalBlocks = [];
+    lastFinal = '';
+    el.className = 'czech-text empty';
+    el.textContent = 'Waiting for translation…';
+    return;
+  }
+
+  // Append only the newly added final text (avoid rewriting the whole thing)
+  if (final.length > lastFinal.length) {
+    const added = final.substring(lastFinal.length).trim();
+    if (added) {
+      finalBlocks.push(added);
+      if (finalBlocks.length > MAX_LINES) finalBlocks.shift();
+      lastFinal = final;
+    }
+  }
+
+  el.className = 'czech-text';
+
+  // Rebuild DOM — final blocks + interim
+  const lines = finalBlocks.map(t => `<div class="caption-line">${t}</div>`).join('');
+  const interimHtml = interim
+    ? `<div class="caption-line interim">${interim}</div>`
+    : '';
+  el.innerHTML = lines + interimHtml;
+
+  // Scroll anchor into view on next paint
+  requestAnimationFrame(scrollToBottom);
+}
+
+function renderHindi(final, interim) {
+  const el = document.getElementById('hindi-text');
+  el.innerHTML = '';
+  const text = (final || '') + (interim ? ` ${interim}` : '');
+  el.textContent = text;
+}
+
+// Volume slider
+document.getElementById('vol-slider').addEventListener('input', e => {
+  volume = parseFloat(e.target.value);
+});
+
+// ── Init ───────────────────────────────────────────────────────────────
+// Show unmute overlay immediately (required for iOS)
+// connectWS() is called after user taps "Enable Audio"
+</script>
+</body>
+</html>
