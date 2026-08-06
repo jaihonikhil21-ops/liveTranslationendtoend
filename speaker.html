@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speaker — Live Translation</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #ffffff; color: #1a1a1a;
+    min-height: 100vh; padding: 1.5rem 1rem;
+  }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.5rem; padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .logo { font-size: 18px; font-weight: 700; color: #d4870f; }
+  .logo span { color: #888; font-weight: 400; font-size: 13px; margin-left: 8px; }
+
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .badge-orange { background: rgba(212,135,15,0.1); color: #b8730c; border: 1px solid rgba(212,135,15,0.3); }
+  .badge-green  { background: rgba(22,163,74,0.1);  color: #15803d; border: 1px solid rgba(22,163,74,0.25); }
+  .badge-red    { background: rgba(220,38,38,0.1);  color: #dc2626; border: 1px solid rgba(220,38,38,0.25); }
+  .badge-blue   { background: rgba(37,99,235,0.1);  color: #2563eb; border: 1px solid rgba(37,99,235,0.25); }
+
+  .card {
+    background: #f7f7f7; border: 1px solid #e5e5e5; border-radius: 12px;
+    padding: 1.1rem; margin-bottom: 1rem;
+  }
+  .card-label {
+    font-size: 10px; color: #888; letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 12px; font-weight: 600;
+  }
+  label.field { font-size: 11px; color: #666; display: block; margin-bottom: 5px; }
+  input[type="password"], select {
+    width: 100%; padding: 9px 12px; background: #ffffff; border: 1px solid #d4d4d4;
+    border-radius: 8px; color: #1a1a1a; font-size: 13px; outline: none;
+    transition: border-color 0.15s; margin-bottom: 10px;
+  }
+  input:focus, select:focus { border-color: #d4870f; }
+
+  .speed-row { margin-top: 4px; }
+  input[type="range"] { width: 100%; accent-color: #d4870f; cursor: pointer; margin: 4px 0; }
+  .speed-labels { display: flex; justify-content: space-between; font-size: 10px; color: #999; }
+
+  /* Big broadcast button */
+  #broadcast-btn {
+    width: 100%; padding: 20px; border-radius: 14px;
+    border: 2px solid #d4d4d4; background: #f7f7f7;
+    font-size: 17px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    transition: all 0.2s; color: #1a1a1a;
+  }
+  #broadcast-btn:hover { border-color: #d4870f; }
+  #broadcast-btn.live { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
+  .dot.pulse { animation: pulse 0.9s infinite; }
+
+  /* Listener counter */
+  .listener-bar {
+    margin-top: 10px; padding: 10px 14px; background: #ffffff;
+    border: 1px solid #e5e5e5; border-radius: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .listener-count {
+    font-size: 26px; font-weight: 700; color: #d4870f; font-variant-numeric: tabular-nums;
+  }
+  .listener-label { font-size: 11px; color: #888; margin-top: 2px; }
+  .ws-status { font-size: 11px; color: #888; }
+  .ws-status.ok { color: #15803d; }
+  .ws-status.err { color: #dc2626; }
+
+  /* Transcripts */
+  .divider { height: 1px; background: #e5e5e5; margin: 1rem 0; }
+  .stream-box { margin-bottom: 12px; }
+  .lang-tag {
+    display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 999px; margin-bottom: 6px;
+  }
+  .tag-hi { background: #fdf0e2; color: #b8730c; }
+  .tag-cs { background: #f3edfb; color: #7c3aed; }
+  .transcript {
+    font-size: 14px; line-height: 1.75; color: #333; min-height: 20px;
+    word-break: break-word;
+  }
+  .transcript .interim { color: #999; font-style: italic; }
+  .transcript.empty { color: #aaa; font-style: italic; font-size: 13px; }
+
+  .status-bar {
+    font-size: 11px; color: #888; margin-top: 8px; min-height: 16px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-bar.speaking { color: #2563eb; }
+  .status-bar.error { color: #dc2626; }
+  .status-bar.ok { color: #15803d; }
+
+  details summary { font-size: 10px; color: #aaa; cursor: pointer; margin-top: 10px; }
+  #debug-log {
+    font-size: 10px; font-family: monospace; color: #888; max-height: 80px;
+    overflow-y: auto; margin-top: 6px; background: #f0f0f0; padding: 6px;
+    border-radius: 6px; white-space: pre-wrap;
+  }
+
+  @media (min-width: 600px) { body { max-width: 560px; margin: 0 auto; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🎙 SPEAKER <span>/ live translation</span></div>
+  <div id="ws-conn-status" class="ws-status">⬤ disconnected</div>
+</div>
+
+<div class="badge-row">
+  <span class="badge badge-orange" id="direction-badge">Hindi → Czech</span>
+  <span class="badge badge-blue" id="engine-badge">Soniox STT</span>
+  <span class="badge badge-green" id="tts-badge">Soniox TTS</span>
+</div>
+
+<!-- Settings -->
+<div class="card">
+  <div class="card-label">Configuration</div>
+  <label class="field">Soniox API Key</label>
+  <input type="password" id="soniox-key" placeholder="sk-… from console.soniox.com">
+
+
+  <div style="margin-bottom:10px;">
+    <label class="field">Translation Direction</label>
+    <select id="translation-direction" onchange="updateLanguageUI()">
+      <option value="hi-cs" selected>Hindi → Czech</option>
+      <option value="cs-hi">Czech → Hindi</option>
+    </select>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div>
+      <label class="field">TTS Voice</label>
+      <select id="tts-voice">
+        <option value="Maya">Maya (female)</option>
+        <option value="Nina">Nina (female)</option>
+        <option value="Emma">Emma (female)</option>
+        <option value="Adrian" selected>Adrian (male)</option>
+        <option value="Daniel">Daniel (male)</option>
+        <option value="Noah">Noah (male)</option>
+      </select>
+    </div>
+    <div>
+      <label class="field">Auto-speak</label>
+      <select id="auto-speak">
+        <option value="yes">Yes</option>
+        <option value="no">Text only</option>
+      </select>
+    </div>
+  </div>
+
+  
+  <div style="margin-top:10px;">
+    <label class="field">Audio Output</label>
+    <select id="audio-output-mode">
+      <option value="speaker" selected>Speaker only</option>
+      <option value="broadcast">Broadcast to listeners only</option>
+      <option value="both">Speaker + Broadcast</option>
+    </select>
+  </div>
+
+<div class="speed-row">
+    <label class="field">Speech speed — <span id="speed-val">1.2×</span></label>
+    <input type="range" id="tts-speed" min="0.5" max="2.5" step="0.1" value="1.2"
+      oninput="document.getElementById('speed-val').textContent=parseFloat(this.value).toFixed(1)+'×'">
+    <div class="speed-labels"><span>0.5×</span><span>1.0×</span><span>2.5×</span></div>
+  </div>
+</div>
+
+<!-- Broadcast button + listener count -->
+<div class="card">
+  <button id="broadcast-btn" onclick="toggleBroadcast()">
+    <span class="dot" id="btn-dot"></span>
+    <span id="btn-label">Start Broadcasting</span>
+  </button>
+
+  <div class="listener-bar">
+    <div>
+      <div class="listener-count" id="listener-count">0</div>
+      <div class="listener-label">listeners connected</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:11px;color:#555;">Share this URL:</div>
+      <div style="font-family:monospace;font-size:12px;color:#f5a623;" id="listener-url">http://…:3000</div>
+    </div>
+  </div>
+</div>
+
+<!-- Live transcripts -->
+<div class="card">
+  <div class="stream-box">
+    <span class="lang-tag tag-hi" id="live-label">हिंदी (live)</span>
+    <div class="transcript empty" id="hindi-live">Waiting for speech…</div>
+  </div>
+  <div class="divider"></div>
+  <div class="stream-box">
+    <span class="lang-tag tag-cs" id="translation-label">Čeština (translation)</span>
+    <div class="transcript empty" id="czech-live">Translation will appear here…</div>
+  </div>
+  <div class="status-bar" id="status-bar">Ready.</div>
+  <details>
+    <summary>Debug log</summary>
+    <div id="debug-log"></div>
+  </details>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let relayWs     = null;   // WebSocket to our local server
+let sonioxWs    = null;   // WebSocket to Soniox
+let mediaRecorder = null;
+let micStream   = null;
+let isLive      = false;
+let finalHindi  = '';
+let finalCzech  = '';
+let pendingSpeak = '';
+let speakQueue  = [];
+let ttsPlaying  = false;
+let ttsAudioCtx = null;
+
+// ── Connect to relay server ────────────────────────────────────────────
+function connectRelay() {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${protocol}://${location.host}/ws/speaker`;
+  dbg('Connecting to relay: ' + wsUrl);
+  relayWs = new WebSocket(wsUrl);
+
+  relayWs.onopen = () => {
+    dbg('Relay WS open');
+    document.getElementById('ws-conn-status').textContent = '⬤ server connected';
+    document.getElementById('ws-conn-status').className = 'ws-status ok';
+  };
+
+  relayWs.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'status') {
+        document.getElementById('listener-count').textContent = msg.listeners;
+      }
+    } catch {}
+  };
+
+  relayWs.onclose = () => {
+    dbg('Relay WS closed — reconnecting in 2s');
+    document.getElementById('ws-conn-status').textContent = '⬤ reconnecting…';
+    document.getElementById('ws-conn-status').className = 'ws-status err';
+    setTimeout(connectRelay, 2000);
+  };
+
+  relayWs.onerror = () => {};
+}
+
+// ── Show listener URL ──────────────────────────────────────────────────
+const host = location.hostname;
+document.getElementById('listener-url').textContent = `${location.origin}/listen`;
+
+// ── Toggle broadcast ───────────────────────────────────────────────────
+async function toggleBroadcast() {
+  if (isLive) stopBroadcast(); else startBroadcast();
+}
+
+async function startBroadcast() {
+  const key = document.getElementById('soniox-key').value.trim();
+  if (!key) { setStatus('Enter your Soniox API key first.', 'error'); return; }
+
+  isLive = true;
+  finalHindi = ''; finalCzech = ''; pendingSpeak = '';
+  renderTranscript('hindi-live', '', '');
+  renderTranscript('czech-live', '', '');
+
+  document.getElementById('broadcast-btn').classList.add('live');
+  document.getElementById('btn-dot').classList.add('pulse');
+  document.getElementById('btn-label').textContent = 'Stop Broadcasting';
+  setStatus('Requesting microphone…');
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    setStatus('Microphone denied: ' + e.message, 'error');
+    resetBroadcastUI(); return;
+  }
+
+  connectSoniox(key);
+}
+
+function stopBroadcast() {
+  isLive = false;
+  if (sonioxWs) { try { sonioxWs.close(); } catch {} sonioxWs = null; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (pendingSpeak.trim()) flushToTTS(pendingSpeak.trim());
+  pendingSpeak = '';
+  resetBroadcastUI();
+  setStatus('Stopped.');
+  // Tell listeners broadcast ended
+  if (relayWs && relayWs.readyState === 1) {
+    relayWs.send(JSON.stringify({ type: 'broadcast_stopped' }));
+  }
+}
+
+function resetBroadcastUI() {
+  document.getElementById('broadcast-btn').classList.remove('live');
+  document.getElementById('btn-dot').classList.remove('pulse');
+  document.getElementById('btn-label').textContent = 'Start Broadcasting';
+}
+
+// ── Soniox STT WebSocket ───────────────────────────────────────────────
+function connectSoniox(key) {
+  sonioxWs = new WebSocket('wss://stt-rt.soniox.com/transcribe-websocket');
+
+  sonioxWs.onopen = () => {
+    dbg('Soniox WS open');
+    setStatus('Listening…');
+
+    sonioxWs.send(JSON.stringify({
+      api_key: key,
+      model: 'stt-rt-preview',
+      audio_format: 'auto',
+      language_hints: [window.sourceLanguage],
+      translation: { type: 'one_way', target_language: window.targetLanguage },
+      enable_endpoint_detection: true,
+      max_endpoint_delay_ms: 700
+    }));
+
+    startMic();
+  };
+
+  sonioxWs.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.error_message) { setStatus('Soniox: ' + data.error_message, 'error'); return; }
+      if (data.tokens && data.tokens.length > 0) processTokens(data.tokens);
+    } catch {}
+  };
+
+  sonioxWs.onclose = (e) => {
+    dbg(`Soniox WS closed: ${e.code} ${e.reason}`);
+    stopMic();
+    if (isLive) {
+      setStatus('Reconnecting to Soniox…', 'ok');
+      setTimeout(() => connectSoniox(document.getElementById('soniox-key').value.trim()), 1500);
+    }
+  };
+
+  sonioxWs.onerror = () => dbg('Soniox WS error');
+}
+
+// ── Token processing ───────────────────────────────────────────────────
+function processTokens(tokens) {
+  let iH = '', iC = '', fH = '', fC = '';
+  let gotEnd = false;
+
+  for (const tok of tokens) {
+    if (!tok.text) continue;
+    if (tok.text === '<end>') { gotEnd = true; continue; }
+    const isTrans = tok.translation_status === 'translation';
+    const isOrig  = tok.translation_status === 'original' || !tok.translation_status || tok.translation_status === 'none';
+    if (tok.is_final) { if (isTrans) fC += tok.text; else if (isOrig) fH += tok.text; }
+    else              { if (isTrans) iC += tok.text; else if (isOrig) iH += tok.text; }
+  }
+
+  if (fH) finalHindi += fH;
+  if (fC) { finalCzech += fC; pendingSpeak += fC; }
+
+  const wordCount = pendingSpeak.trim().split(/\s+/).length;
+  if (pendingSpeak.trim() && (gotEnd || wordCount >= 6)) {
+    flushToTTS(pendingSpeak.trim());
+    pendingSpeak = '';
+  }
+
+  renderTranscript('hindi-live', finalHindi, iH);
+  renderTranscript('czech-live', finalCzech, iC);
+
+  // Send text update to listeners
+  if (relayWs && relayWs.readyState === 1 && (fH || fC)) {
+    // NOTE: fields are named by ROLE (original / translation), not by
+    // language, because finalHindi/finalCzech actually hold "source
+    // language text" / "target language text" — which is Hindi text only
+    // when direction is hi→cs. In cs→hi mode finalHindi holds Czech text.
+    // sourceLanguage/targetLanguage tell the listener which is which.
+    relayWs.send(JSON.stringify({
+      type: 'translation',
+      original: finalHindi,
+      translation: finalCzech,
+      interimOriginal: iH,
+      interimTranslation: iC,
+      sourceLanguage: window.sourceLanguage,
+      targetLanguage: window.targetLanguage
+    }));
+  }
+}
+
+function renderTranscript(id, final, interim) {
+  const el = document.getElementById(id);
+  if (!final && !interim) {
+    el.className = 'transcript empty';
+    el.textContent = id === 'hindi-live' ? 'Waiting for speech…' : 'Translation will appear here…';
+    return;
+  }
+  el.className = 'transcript';
+  el.innerHTML = '';
+  if (final)  { const s = document.createElement('span'); s.textContent = final;  el.appendChild(s); }
+  if (interim){ const s = document.createElement('span'); s.className = 'interim'; s.textContent = interim; el.appendChild(s); }
+}
+
+// ── TTS via Soniox ─────────────────────────────────────────────────────
+function flushToTTS(text) {
+  if (!text || document.getElementById('auto-speak').value !== 'yes') return;
+  speakQueue.push(text);
+  drainQueue();
+}
+
+function getTtsCtx() {
+  if (!ttsAudioCtx || ttsAudioCtx.state === 'closed') ttsAudioCtx = new AudioContext();
+  if (ttsAudioCtx.state === 'suspended') ttsAudioCtx.resume();
+  return ttsAudioCtx;
+}
+
+async function drainQueue() {
+  if (ttsPlaying || speakQueue.length === 0) return;
+  ttsPlaying = true;
+
+  while (speakQueue.length > 0) {
+    const text = speakQueue.shift();
+    setStatus('Speaking…', 'speaking');
+    const nextPromise = speakQueue.length > 0 ? fetchTTS(speakQueue[0]) : null;
+    const result = await fetchTTS(text);
+    if (result) await playAndBroadcast(result.buf, result.raw);
+    if (nextPromise && speakQueue.length > 0) {
+      const next = await nextPromise;
+      if (next) { speakQueue.shift(); await playAndBroadcast(next.buf, next.raw); }
+    }
+  }
+
+  ttsPlaying = false;
+  if (isLive) setStatus('Listening…');
+}
+
+async function fetchTTS(text) {
+  const key   = document.getElementById('soniox-key').value.trim();
+  const voice = document.getElementById('tts-voice').value;
+  const speed = parseFloat(document.getElementById('tts-speed').value);
+  if (!key || !text) return null;
+  dbg(`TTS: "${text.slice(0,30)}…"`);
+  try {
+    const res = await fetch('https://tts-rt.soniox.com/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: 'tts-rt-v1-preview', language: window.targetLanguage, voice, audio_format: 'mp3', text })
+    });
+    if (!res.ok) { dbg('TTS error: ' + res.status); return null; }
+    const raw = await res.arrayBuffer();    // keep raw bytes for broadcasting
+    const ctx = getTtsCtx();
+    const buf = await ctx.decodeAudioData(raw.slice(0)); // clone for decode
+    return { buf, raw };
+  } catch (e) { dbg('TTS exception: ' + e.message); return null; }
+}
+
+async function playAndBroadcast(audioBuf, rawBytes) {
+  const mode = document.getElementById('audio-output-mode')?.value || 'speaker';
+
+  // Play locally unless broadcast-only mode is selected
+  if (mode !== 'broadcast') {
+    const speed = parseFloat(document.getElementById('tts-speed').value);
+    const ctx = getTtsCtx();
+    await new Promise(resolve => {
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.playbackRate.value = speed;
+      src.connect(ctx.destination);
+      src.onended = resolve;
+      src.start(0);
+    });
+  }
+
+  // Send only to listeners when requested
+  if ((mode === 'broadcast' || mode === 'both') &&
+      relayWs && relayWs.readyState === 1) {
+    relayWs.send(rawBytes);
+    dbg(`Broadcast audio: ${rawBytes.byteLength} bytes`);
+  }
+}
+
+// ── Mic capture — MediaRecorder ────────────────────────────────────────
+function startMic() {
+  if (!micStream) return;
+  const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg']
+    .find(m => MediaRecorder.isTypeSupported(m)) || '';
+  try {
+    mediaRecorder = new MediaRecorder(micStream, mimeType ? { mimeType } : {});
+  } catch (e) { setStatus('Mic error: ' + e.message, 'error'); return; }
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (!e.data || e.data.size === 0 || !sonioxWs || sonioxWs.readyState !== 1) return;
+    e.data.arrayBuffer().then(buf => {
+      if (sonioxWs && sonioxWs.readyState === 1) sonioxWs.send(buf);
+    });
+  };
+  mediaRecorder.start(250);
+  dbg('MediaRecorder started');
+}
+
+function stopMic() {
+  try { mediaRecorder && mediaRecorder.state !== 'inactive' && mediaRecorder.stop(); } catch {}
+  mediaRecorder = null;
+}
+
+// ── Status & debug ─────────────────────────────────────────────────────
+function setStatus(msg, type='') {
+  const el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.className = 'status-bar' + (type ? ' ' + type : '');
+}
+function dbg(msg) {
+  const el = document.getElementById('debug-log');
+  el.textContent = '[' + new Date().toISOString().slice(11,23) + '] ' + msg + '\n' + el.textContent;
+}
+
+
+window.sourceLanguage='hi';
+window.targetLanguage='cs';
+function updateLanguageUI(){
+ const d=document.getElementById('translation-direction').value;
+ if(d==='cs-hi'){
+   window.sourceLanguage='cs';
+   window.targetLanguage='hi';
+   document.getElementById('direction-badge').textContent='Czech → Hindi';
+   document.getElementById('live-label').textContent='Čeština (live)';
+   document.getElementById('translation-label').textContent='हिंदी (translation)';
+ }else{
+   window.sourceLanguage='hi';
+   window.targetLanguage='cs';
+   document.getElementById('direction-badge').textContent='Hindi → Czech';
+   document.getElementById('live-label').textContent='हिंदी (live)';
+   document.getElementById('translation-label').textContent='Čeština (translation)';
+ }
+}
+updateLanguageUI();
+
+
+// ── Init ───────────────────────────────────────────────────────────────
+connectRelay();
+
+// Load saved key
+const saved = localStorage.getItem('soniox-key');
+if (saved) document.getElementById('soniox-key').value = saved;
+document.getElementById('soniox-key').addEventListener('change', e => {
+  localStorage.setItem('soniox-key', e.target.value);
+});
+</script>
+</body>
+</html>

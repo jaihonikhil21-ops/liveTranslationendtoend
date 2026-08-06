@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Live Translation — Czech</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f8fafc;
+    color: #111827;
+    overflow: hidden;
+  }
+
+  /* ── Full page layout ── */
+  .page {
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 14px 20px;
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-icon { font-size: 22px; }
+  .header-title { font-size: 16px; font-weight: 700; color: #111827; }
+  .header-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+
+  .live-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: #dcfce7; border: 1px solid #86efac;
+    border-radius: 999px; padding: 4px 12px;
+    font-size: 11px; font-weight: 600; color: #15803d;
+    transition: all 0.3s;
+  }
+  .live-pill.waiting { background: #f3f4f6; border-color: #d1d5db; color: #6b7280; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; flex-shrink: 0; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .live-dot.pulse { animation: pulse 0.9s infinite; }
+
+  /* ── Czech transcript — THIS is the scrolling area ── */
+  .czech-section {
+    overflow-y: scroll;
+    padding: 20px 16px 20px 24px;
+    background: #f8fafc;
+    position: relative;
+    /* Force scrollbar space always reserved */
+    scrollbar-gutter: stable;
+  }
+
+  /* Scrollbar always visible with high contrast */
+  .czech-section::-webkit-scrollbar {
+    width: 14px;
+    background: #d8b4fe; /* visible purple track even with no content */
+  }
+  .czech-section::-webkit-scrollbar-track {
+    background: #d8b4fe;
+  }
+  .czech-section::-webkit-scrollbar-thumb {
+    background: #7c3aed;
+    border-radius: 7px;
+    border: 3px solid #d8b4fe;
+    min-height: 30px;
+  }
+  .czech-section::-webkit-scrollbar-thumb:hover { background: #5b21b6; }
+  /* Firefox */
+  .czech-section { scrollbar-width: auto; scrollbar-color: #7c3aed #d8b4fe; }
+
+  .czech-label {
+    font-size: 10px; font-weight: 600; color: #9966cc;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 14px; display: block;
+    position: sticky; top: 0;
+    background: #f8fafc;
+    padding: 4px 0 8px;
+    z-index: 2;
+  }
+
+  .czech-text {
+    font-size: clamp(22px, 4vw, 38px);
+    line-height: 1.7;
+    color: #111827;
+    word-break: break-word;
+  }
+  .czech-text.empty { color: #9ca3af; font-style: italic; font-size: 16px; }
+  .caption-line { display: inline; }
+  .caption-line::after { content: ' '; }
+  .caption-line.interim { color: #9ca3af; font-style: italic; }
+
+  /* ── Hindi source bar ── */
+  .hindi-section {
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+    padding: 10px 20px 12px;
+    overflow: hidden;
+  }
+  .hindi-label {
+    font-size: 9px; font-weight: 600; color: #c4681a;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 4px; opacity: 0.7;
+  }
+  .hindi-text {
+    font-size: 12px; line-height: 1.6; color: #6b7280;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── Bottom bar ── */
+  .bottom-bar {
+    padding: 8px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .vol-row { display: flex; align-items: center; gap: 8px; }
+  .vol-label { font-size: 10px; color: #6b7280; }
+  input[type="range"] { width: 100px; accent-color: #9966cc; cursor: pointer; }
+  .conn-info { font-size: 10px; color: #6b7280; text-align: right; }
+
+  /* ── Overlays — only cover the transcript area, not full page ── */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: #f8fafc;
+    pointer-events: all;
+  }
+  .overlay.hidden { display: none; }
+
+  .unmute-icon {
+    width: 80px; height: 80px;
+    border: 2px solid #9966cc; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+  }
+  .unmute-title { font-size: 20px; font-weight: 700; }
+  .unmute-sub { font-size: 13px; color: #6b7280; text-align: center; max-width: 260px; line-height: 1.5; }
+  .unmute-btn {
+    background: #9966cc; color: #fff; border: none; border-radius: 12px;
+    padding: 14px 36px; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+
+  .connecting-spinner {
+    width: 48px; height: 48px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #9966cc;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .connecting-text { font-size: 14px; color: #6b7280; }
+
+  .waiting-icon { font-size: 48px; opacity: 0.25; }
+  .waiting-text { font-size: 15px; color: #6b7280; }
+  .waiting-sub { font-size: 12px; color: #9ca3af; }
+
+  /* Back to live button */
+  .back-to-live {
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #9966cc;
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 50;
+    display: none;
+    box-shadow: 0 4px 12px rgba(153,102,204,0.4);
+    white-space: nowrap;
+  }
+  .back-to-live.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-icon">🎧</div>
+      <div>
+        <div class="header-title">Live Translation</div>
+        <div class="header-sub" id="language-direction">Hindi → Czech</div>
+      </div>
+    </div>
+    <div class="live-pill waiting" id="live-pill">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="live-label">Waiting</span>
+    </div>
+  </div>
+
+  <!-- Czech transcript — the scrollable area -->
+  <div class="czech-section" id="czech-section">
+
+    <!-- Overlays inside the scroll area so they don't block scrollbar -->
+    <div class="overlay" id="unmute-overlay">
+      <div class="unmute-icon">🔇</div>
+      <div class="unmute-title">Tap to enable audio</div>
+      <div class="unmute-sub">Your browser needs permission to play audio. Tap below to start.</div>
+      <button class="unmute-btn" onclick="enableAudio()">Enable Audio →</button>
+    </div>
+
+    <div class="overlay hidden" id="connecting-overlay">
+      <div class="connecting-spinner"></div>
+      <div class="connecting-text">Connecting to server…</div>
+    </div>
+
+    <div class="overlay hidden" id="waiting-overlay">
+      <div class="waiting-icon">🎙</div>
+      <div class="waiting-text">Waiting for speaker</div>
+      <div class="waiting-sub">The broadcast will start automatically</div>
+    </div>
+
+    <span class="czech-label" id="translation-label">🇨🇿 Czech translation</span>
+    <div class="czech-text empty" id="czech-text">Waiting for translation…</div>
+    <div id="scroll-anchor" style="height:1px;"></div>
+  </div>
+
+  <!-- Hindi source -->
+  <div class="hindi-section">
+    <div class="hindi-label" id="source-label">🇮🇳 Hindi source</div>
+    <div class="hindi-text" id="hindi-text"></div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <div class="vol-row">
+      <div class="vol-label">VOL</div>
+      <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="1">
+    </div>
+    <div class="conn-info">
+      <div id="listener-count-info">— listeners</div>
+      <div id="conn-status">—</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Back to live -->
+<button class="back-to-live" id="back-to-live" onclick="resumeAutoScroll()">↓ Back to live</button>
+
+<script>
+let ws           = null;
+let audioCtx     = null;
+let audioEnabled = false;
+let audioQueue   = [];
+let isPlaying    = false;
+let speakerActive = false;
+let volume       = 1.0;
+let userScrolledUp = false;
+
+const MAX_LINES  = 300;
+let finalBlocks  = [];
+let lastFinal    = '';
+
+const czechSection = document.getElementById('czech-section');
+
+// ── Scroll detection ───────────────────────────────────────────────────
+czechSection.addEventListener('scroll', () => {
+  const distFromBottom = czechSection.scrollHeight - czechSection.scrollTop - czechSection.clientHeight;
+  userScrolledUp = distFromBottom > 100;
+  document.getElementById('back-to-live').classList.toggle('show', userScrolledUp);
+});
+
+function scrollToBottom() {
+  if (userScrolledUp) return;
+  document.getElementById('scroll-anchor').scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function resumeAutoScroll() {
+  userScrolledUp = false;
+  document.getElementById('back-to-live').classList.remove('show');
+  document.getElementById('scroll-anchor').scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+// ── Enable audio ───────────────────────────────────────────────────────
+function enableAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  audioEnabled = true;
+  document.getElementById('unmute-overlay').classList.add('hidden');
+  document.getElementById('connecting-overlay').classList.remove('hidden');
+  drainAudioQueue();
+  connectWS();
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────
+function connectWS() {
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${protocol}://${location.host}/ws/listener`);
+  ws.binaryType = 'arraybuffer';
+  document.getElementById('conn-status').textContent = 'Connecting…';
+
+  ws.onopen = () => {
+    document.getElementById('connecting-overlay').classList.add('hidden');
+    document.getElementById('conn-status').textContent = 'Connected';
+    if (!speakerActive) showWaiting(true);
+  };
+
+  ws.onmessage = (e) => {
+    if (e.data instanceof ArrayBuffer) {
+      handleAudioChunk(e.data);
+    } else {
+      try { handleMessage(JSON.parse(e.data)); } catch {}
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('conn-status').textContent = 'Reconnecting…';
+    document.getElementById('connecting-overlay').classList.remove('hidden');
+    document.getElementById('waiting-overlay').classList.add('hidden');
+    setLivePill(false);
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => {};
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'connected') {
+    speakerActive = msg.speakerActive;
+    document.getElementById('listener-count-info').textContent = msg.listenerCount + ' listeners';
+    showWaiting(!speakerActive);
+    if (speakerActive) setLivePill(true);
+  }
+  if (msg.type === 'status') {
+    document.getElementById('listener-count-info').textContent = msg.listeners + ' listeners';
+    speakerActive = msg.speakerActive;
+    if (!speakerActive) { setLivePill(false); showWaiting(true); }
+  }
+  if (msg.type === 'translation') {
+    showWaiting(false);
+    setLivePill(true);
+
+    const sourceLang = msg.sourceLanguage || 'hi';
+    const targetLang = msg.targetLanguage || 'cs';
+    const dir = sourceLang + '-' + targetLang;
+    if (dir !== lastDirection) {
+      // Direction changed (or first message): the accumulated diff state
+      // belongs to a different stream, so start the caption area fresh.
+      lastDirection = dir;
+      finalBlocks = []; lastFinal = ''; interimSpan = null;
+      document.getElementById('czech-text').innerHTML = '';
+    }
+
+    // The main caption panel always shows the TRANSLATION, and the small
+    // bar always shows the ORIGINAL — regardless of which language that
+    // happens to be. Only the labels change with direction.
+    if (sourceLang === 'cs' && targetLang === 'hi') {
+      document.getElementById('language-direction').textContent = 'Czech → Hindi';
+      document.getElementById('translation-label').textContent = '🇮🇳 Hindi translation';
+      document.getElementById('source-label').textContent = '🇨🇿 Czech source';
+    } else {
+      document.getElementById('language-direction').textContent = 'Hindi → Czech';
+      document.getElementById('translation-label').textContent = '🇨🇿 Czech translation';
+      document.getElementById('source-label').textContent = '🇮🇳 Hindi source';
+    }
+    renderCzech(msg.translation || '', msg.interimTranslation || '');
+    renderHindi(msg.original || '', msg.interimOriginal || '');
+  }
+  if (msg.type === 'broadcast_stopped' || msg.type === 'speaker_disconnected') {
+    speakerActive = false;
+    setLivePill(false);
+    showWaiting(true);
+    lastDirection = null; // next broadcast starts its own text from scratch
+  }
+}
+
+// ── Audio ──────────────────────────────────────────────────────────────
+function handleAudioChunk(ab) {
+  audioQueue.push(ab);
+  if (audioEnabled) drainAudioQueue();
+}
+
+async function drainAudioQueue() {
+  if (isPlaying || audioQueue.length === 0 || !audioCtx) return;
+  isPlaying = true;
+  while (audioQueue.length > 0) {
+    const chunk = audioQueue.shift();
+    const nextPromise = audioQueue.length > 0
+      ? audioCtx.decodeAudioData(audioQueue[0].slice(0)).catch(() => null) : null;
+    let buf;
+    try { buf = await audioCtx.decodeAudioData(chunk.slice(0)); } catch { continue; }
+    await playBuffer(buf);
+    if (nextPromise && audioQueue.length > 0) {
+      const nb = await nextPromise;
+      if (nb) { audioQueue.shift(); await playBuffer(nb); }
+    }
+  }
+  isPlaying = false;
+}
+
+async function playBuffer(buf) {
+  if (!audioCtx) return;
+  const vol = parseFloat(document.getElementById('vol-slider').value);
+  await new Promise(resolve => {
+    const src  = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    gain.gain.value = vol;
+    src.buffer = buf;
+    src.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.onended = resolve;
+    src.start(0);
+  });
+}
+
+// ── Render ─────────────────────────────────────────────────────────────
+let interimSpan = null; // the single "in progress" span we mutate in place
+let lastDirection = null; // 'hi-cs' or 'cs-hi' — detects a direction switch
+
+function renderCzech(final, interim) {
+  const el = document.getElementById('czech-text');
+
+  if (!final && !interim) {
+    finalBlocks = []; lastFinal = ''; interimSpan = null;
+    el.className = 'czech-text empty';
+    el.textContent = 'Waiting for translation…';
+    return;
+  }
+
+  // First real content: switch out of the empty/placeholder state once.
+  if (el.classList.contains('empty')) {
+    el.className = 'czech-text';
+    el.innerHTML = '';
+    interimSpan = null;
+  }
+
+  if (final.length > lastFinal.length) {
+    const added = final.substring(lastFinal.length).trim();
+    if (added) {
+      // The interim span is about to be superseded by real final text —
+      // drop it so the new final span takes its place at the end.
+      if (interimSpan) { interimSpan.remove(); interimSpan = null; }
+
+      const span = document.createElement('span');
+      span.className = 'caption-line';
+      span.textContent = added;
+      el.appendChild(span);
+
+      finalBlocks.push(added);
+      if (finalBlocks.length > MAX_LINES) {
+        finalBlocks.shift();
+        const oldest = el.querySelector('.caption-line:not(.interim)');
+        if (oldest) oldest.remove();
+      }
+      lastFinal = final;
+    }
+  }
+
+  // Interim text is updated in place — never touches the finalized spans.
+  if (interim) {
+    if (!interimSpan) {
+      interimSpan = document.createElement('span');
+      interimSpan.className = 'caption-line interim';
+      el.appendChild(interimSpan);
+    }
+    interimSpan.textContent = interim;
+  } else if (interimSpan) {
+    interimSpan.remove();
+    interimSpan = null;
+  }
+
+  requestAnimationFrame(scrollToBottom);
+}
+
+function renderHindi(final, interim) {
+  document.getElementById('hindi-text').textContent = (final || '') + (interim ? ' ' + interim : '');
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────
+function setLivePill(live) {
+  const pill = document.getElementById('live-pill');
+  const dot  = document.getElementById('live-dot');
+  pill.className = live ? 'live-pill' : 'live-pill waiting';
+  dot.classList.toggle('pulse', live);
+  document.getElementById('live-label').textContent = live ? 'LIVE' : 'Waiting';
+}
+
+function showWaiting(show) {
+  document.getElementById('waiting-overlay').classList.toggle('hidden', !show);
+}
+
+document.getElementById('vol-slider').addEventListener('input', e => {
+  volume = parseFloat(e.target.value);
+});
+</script>
+</body>
+</html>
